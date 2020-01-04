@@ -24,13 +24,14 @@
 #    define CMD_BUFF_SIZE 5
 #endif
 
-bool terminal_enabled = false;
-char buffer[80]       = "";
+bool terminal_enabled   = false;
+char buffer[80]         = "";
 char cmd_buffer[CMD_BUFF_SIZE][80];
 bool cmd_buffer_enabled = true;  // replace with ifdef?
 char newline[2]         = "\n";
 char arguments[6][20];
-bool firstTime = true;
+bool firstTime          = true;
+int  strPos             = 0;  
 
 short int current_cmd_buffer_pos = 0;  // used for up/down arrows - keeps track of where you are in the command buffer
 
@@ -57,6 +58,8 @@ struct stringcase {
 
 void enable_terminal(void) {
     terminal_enabled = true;
+    strPos = 0;
+    firstTime = true;
     strcpy(buffer, "");
     memset(cmd_buffer, 0, CMD_BUFF_SIZE * 80);
     for (int i = 0; i < 6; i++) strcpy(arguments[i], "");
@@ -255,6 +258,7 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                     push_to_cmd_buffer();
                     current_cmd_buffer_pos = 0;
                     process_terminal_command();
+		    strPos = 0;
                     return false;
                     break;
                 case KC_ESC:
@@ -264,19 +268,41 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                     break;
                 case KC_BSPC:
                     str_len = strlen(buffer);
-                    if (str_len > 0) {
-                        buffer[str_len - 1] = 0;
+                    if (str_len > 0 && strPos > 0) {
+                        buffer[strPos - 1] = 0;
+			--strPos;
                         return true;
                     } else {
                         TERMINAL_BELL();
                         return false;
                     }
                     break;
+		case KC_DEL:
+		    str_len = strlen(buffer);
+		    if (str_len > 0 && strPos < str_len - 1) {
+		        buffer[strPos + 1] = 0;
+		        ++strPos;
+			return true;		    
+		    } else {
+			TERMINAL_BELL();
+			return false;
+		    }
+		    break;
                 case KC_LEFT:
-                    return false;
+		    if (str_len == 0 || strPos == 0) {
+                    	return false;
+		    } else {
+		        --strPos;
+		        return true;
+		    }
                     break;
                 case KC_RIGHT:
-                    return false;
+		    if (str_len == 0 || strPos >= str_len - 1) {
+                    	return false;
+		    } else {
+			++strPos;
+			return true;
+		    }
                     break;
                 case KC_UP:                                             // 0 = recent
                     check_pos();                                        // check our current buffer position is valid
@@ -290,6 +316,7 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
 
                         send_string(buffer);
                         ++current_cmd_buffer_pos;  // get ready to access the above cmd if up/down is pressed again
+			strPos = strlen(buffer) - 1;
                     }
                     return false;
                     break;
@@ -305,6 +332,7 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
 
                         send_string(buffer);
                         --current_cmd_buffer_pos;  // get ready to access the above cmd if down/up is pressed again
+			strPos = strlen(buffer) - 1;
                     }
                     return false;
                     break;
@@ -319,6 +347,9 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                         if (char_to_add != 0) {
                             strncat(buffer, &char_to_add, 1);
                         }
+			if (keycode > 0) {
+                            ++strPos;
+			}
                     }
                     break;
             }
