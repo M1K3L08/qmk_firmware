@@ -25,8 +25,7 @@
 #endif
 
 bool terminal_enabled   = false;
-char initBuffer[80]     = "";
-char* buffer            = initBuffer;
+char buffer[80]         = "";
 char cmd_buffer[CMD_BUFF_SIZE][80];
 bool cmd_buffer_enabled = true;  // replace with ifdef?
 char newline[2]         = "\n";
@@ -353,26 +352,21 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                             if (strPos == str_len) {
                                 strncat(buffer, &char_to_add, 1);
                             } else if (strPos <= str_len) {
-                                //int pivot = str_len - 1;
-                                //reappend the last character to we can simply shift all the ones beneath it
-
                                 //edge case if buffer.length == 79
                                 if (str_len == 80) {
                                     //ignore the last character
                                     str_len = 79;
                                 }
-                                char newBuffer[80];
-                                strncpy(buffer,newBuffer, strPos - 1);
+
+                                char newBuffer[80] = "";
+                                strncpy(newBuffer, buffer, strPos);
                                 strncat(newBuffer, &char_to_add,1);
 
-                                SEND_STRING(newBuffer);
 
+                                strncat(newBuffer + strPos + 1, buffer + strPos , str_len - strPos);
 
-                                strncpy(  buffer + strPos   ,newBuffer, str_len - strPos);
-
-                                buffer = newBuffer;
+                                strncpy(buffer,newBuffer, str_len+1);
                             }
-
 
                             if (current_max_buffer_pos < CMD_BUFF_SIZE - 1) {
                                 ++current_max_buffer_pos;
