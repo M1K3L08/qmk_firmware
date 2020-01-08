@@ -25,15 +25,17 @@
 #endif
 
 bool terminal_enabled   = false;
-char buffer[80]         = "";
+char initBuffer[80]     = "";
+char* buffer            = initBuffer;
 char cmd_buffer[CMD_BUFF_SIZE][80];
 bool cmd_buffer_enabled = true;  // replace with ifdef?
 char newline[2]         = "\n";
 char arguments[6][20];
 bool firstTime          = true;
-int  strPos             = 0;  
+int  strPos             = 0;
 
 short int current_cmd_buffer_pos = 0;  // used for up/down arrows - keeps track of where you are in the command buffer
+short int current_max_buffer_pos = 0;
 
 __attribute__((weak)) const char terminal_prompt[8] = "> ";
 
@@ -227,7 +229,7 @@ void process_terminal_command(void) {
 }
 void check_pos(void) {
     if (current_cmd_buffer_pos >= CMD_BUFF_SIZE) {  // if over the top, move it back down to the top of the buffer so you can climb back down...
-        current_cmd_buffer_pos = CMD_BUFF_SIZE - 1;
+        current_cmd_buffer_pos = current_max_buffer_pos;
     } else if (current_cmd_buffer_pos < 0) {  //...and if you fall under the bottom of the buffer, reset back to 0 so you can climb back up
         current_cmd_buffer_pos = 0;
     }
@@ -250,15 +252,16 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
         }
 
         if (keycode < 256) {
-            uint8_t str_len;
+            uint8_t str_len = strlen(buffer);
             char    char_to_add;
             switch (keycode) {
                 case KC_ENTER:
                 case KC_KP_ENTER:
+                    SEND_STRING(SS_TAP(X_END));
                     push_to_cmd_buffer();
                     current_cmd_buffer_pos = 0;
                     process_terminal_command();
-		    strPos = 0;
+		            strPos = 0;
                     return false;
                     break;
                 case KC_ESC:
@@ -267,47 +270,48 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                     return false;
                     break;
                 case KC_BSPC:
-                    str_len = strlen(buffer);
+                    //str_len = strlen(buffer);
                     if (str_len > 0 && strPos > 0) {
                         buffer[strPos - 1] = 0;
-			--strPos;
+			            --strPos;
                         return true;
                     } else {
                         TERMINAL_BELL();
                         return false;
                     }
                     break;
-		case KC_DEL:
-		    str_len = strlen(buffer);
-		    if (str_len > 0 && strPos < str_len - 1) {
-		        buffer[strPos + 1] = 0;
-		        ++strPos;
-			return true;		    
-		    } else {
-			TERMINAL_BELL();
-			return false;
-		    }
-		    break;
+		        case KC_DEL:
+		            //str_len = strlen(buffer);
+		            if (str_len > 0 && strPos < str_len - 1) {
+		                buffer[strPos + 1] = 0;
+		                ++strPos;
+		        	return true;
+		            } else {
+		        	    TERMINAL_BELL();
+		        	    return false;
+		            }
+		            break;
                 case KC_LEFT:
-		    if (str_len == 0 || strPos == 0) {
-                    	return false;
-		    } else {
-		        --strPos;
-		        return true;
-		    }
-                    break;
+		            if (str_len == 0 || strPos == 0) {
+                        return false;
+		            } else {
+		                --strPos;
+		                return true;
+		            }
+                            break;
                 case KC_RIGHT:
-		    if (str_len == 0 || strPos >= str_len - 1) {
-                    	return false;
-		    } else {
-			++strPos;
-			return true;
-		    }
+		            if (str_len == 0 || strPos >= str_len - 1) {
+                        return false;
+		            } else {
+		        	    ++strPos;
+		        	    return true;
+		            }
                     break;
-                case KC_UP:                                             // 0 = recent
-                    check_pos();                                        // check our current buffer position is valid
-                    if (current_cmd_buffer_pos <= CMD_BUFF_SIZE - 1) {  // once we get to the top, dont do anything
-                        str_len = strlen(buffer);
+                case KC_UP:      // 0 = recent
+                    check_pos(); // check our current buffer position is valid
+
+                    if (current_cmd_buffer_pos <= CMD_BUFF_SIZE - 1 && current_max_buffer_pos > current_cmd_buffer_pos && current_max_buffer_pos != 0 ) {  // once we get to the top, dont do anything
+                        //str_len = strlen(buffer);
                         for (int i = 0; i < str_len; ++i) {
                             send_string(SS_TAP(X_BSPACE));  // clear w/e is on the line already
                             // process_terminal(KC_BSPC,record);
@@ -316,14 +320,14 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
 
                         send_string(buffer);
                         ++current_cmd_buffer_pos;  // get ready to access the above cmd if up/down is pressed again
-			strPos = strlen(buffer) - 1;
+		        	    strPos = strlen(buffer) - 1;
                     }
                     return false;
                     break;
                 case KC_DOWN:
                     check_pos();
                     if (current_cmd_buffer_pos >= 0) {  // once we get to the bottom, dont do anything
-                        str_len = strlen(buffer);
+                        //str_len = strlen(buffer);
                         for (int i = 0; i < str_len; ++i) {
                             send_string(SS_TAP(X_BSPACE));  // clear w/e is on the line already
                             // process_terminal(KC_BSPC,record);
@@ -332,7 +336,7 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
 
                         send_string(buffer);
                         --current_cmd_buffer_pos;  // get ready to access the above cmd if down/up is pressed again
-			strPos = strlen(buffer) - 1;
+		        	    strPos = strlen(buffer) - 1;
                     }
                     return false;
                     break;
@@ -345,13 +349,38 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
                             char_to_add = keycode_to_ascii_lut[keycode];
                         }
                         if (char_to_add != 0) {
-                            strncat(buffer, &char_to_add, 1);
+
+                            if (strPos == str_len) {
+                                strncat(buffer, &char_to_add, 1);
+                            } else if (strPos <= str_len) {
+                                //int pivot = str_len - 1;
+                                //reappend the last character to we can simply shift all the ones beneath it
+
+                                //edge case if buffer.length == 79
+                                if (str_len == 80) {
+                                    //ignore the last character
+                                    str_len = 79;
+                                }
+                                char newBuffer[80];
+                                strncpy(buffer,newBuffer, strPos - 1);
+                                strncat(newBuffer, &char_to_add,1);
+
+                                SEND_STRING(newBuffer);
+
+
+                                strncpy(  buffer + strPos   ,newBuffer, str_len - strPos);
+
+                                buffer = newBuffer;
+                            }
+
+
+                            if (current_max_buffer_pos < CMD_BUFF_SIZE - 1) {
+                                ++current_max_buffer_pos;
+                            }
                         }
-			if (keycode > 0) {
-                            ++strPos;
-			}
+                        ++strPos;
                     }
-                    break;
+                break;
             }
         }
     }
