@@ -86,10 +86,12 @@ void push_to_cmd_buffer(void) {
             }
 
             for (int i = CMD_BUFF_SIZE - 1; i > 0; --i) {
-                strncpy(cmd_buffer[i], cmd_buffer[i - 1], 80);
+                strncpy(cmd_buffer[i], cmd_buffer[i - 1], strlen(cmd_buffer[i - 1]));
             }
 
             strcpy(cmd_buffer[0], buffer);
+
+            strcpy(buffer,"");
 
             return;
         }
@@ -299,7 +301,7 @@ bool process_terminal(uint16_t keycode, keyrecord_t *record) {
 		            }
                             break;
                 case KC_RIGHT:
-		            if (str_len == 0 || strPos >= str_len - 1) {
+		            if (str_len == 0 || strPos <= str_len ) {
                         return false;
 		            } else {
 		        	    ++strPos;
